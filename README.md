@@ -1,67 +1,176 @@
 # DLL-Injector
-ONLY FOR LEARNING PURPOSES<br>
-This solution contains 2 different projects (InjectorGUI <Down'sInjector> and InjectorCLI) based on [BlackBone](https://github.com/DarthTon/Blackbone) API by DarthTon.<br>
-Injector CLI implements more complex methods.
 
-## GUI-Injector
-![img](https://i.gyazo.com/568386b94fc2526e9446ca0a99371b12.png)
+Windows DLL injector with a CLI, an optional MFC GUI, a local launcher, and a Windows service.
 
-After pressing inject, it will wait until the user select another window, and will inject instantly.<br>
-For now only manual-mapping is available for both x86 and x86_64.
+Built on [BlackBone](https://github.com/DarthTon/Blackbone). **For learning and for processes you are authorized to modify.** You are responsible for how you use it.
 
-## CLI-Injector
-![img](https://i.gyazo.com/2f8ae4c0b83155f92095794326cdd48f.png)
-This CLI binary provides multiple options for injecting, it also can execute in the background and inject the dll into multiple processes that can be selected by window name or process name.
+## Features
 
-This support multiple types of DLL injections:
-- Manual-Mapping / LoadLibraryA Injection
-- Auto-execution - launches the target process
-- Auto-injection - keeps the injector in the background and injects the dll on every window or process that matches the option provided
-- ASAP Handles - a technique mentioned [here](https://www.unknowncheats.me/forum/anti-cheat-bypass/236135-asap-handles-v2-getting-handle-process-getting-stripped.html) that allows for the injector to get an handle before every process one the system, bypassing some protections, this methos should only be used with manual mapping injection because the system might not have time to load Kernel32.dll that is required to load LoadLibraryA.
+- **LoadLibrary** (`STANDART`) and **manual map** (`MANUAL`)
+- Inject by PID, by launching a process, or by watching for a process / window name
+- Configurable delay after a target is found and before the DLL is mapped
+- `inject-launcher.bat` for a console session
+- Windows service that starts with the machine and reads `inject-service.ini`
+
+## Layout
+
+| Path | Purpose |
+| --- | --- |
+| `InjectorCLI/` | Console injector and Windows service host |
+| `Down'sInjector/` | MFC GUI (manual map into the next focused window) |
+| `Payload/` | Local DLLs to inject (not committed) |
+| `inject-launcher.bat` | Console watcher; edit process / DLL names here |
+| `inject-service.ini.example` | Template for the Windows service |
+| `install-service.bat` / `uninstall-service.bat` | Register or remove the service (UAC prompt) |
+| `pack-release.bat` | Build a portable zip under `dist/` |
+| `External/include/argparse/` | Vendored CLI parser |
+| `Blackbone/` | Git submodule |
+
+## Requirements
+
+- Windows 10/11 **x64**
+- Visual Studio 2022 with MSVC **v143** and the Windows 10/11 SDK
+- For the GUI project: MFC
+- [BlackBone](https://github.com/DarthTon/Blackbone) sources in `Blackbone/`
+
+## Build
+
+```bat
+git clone <this-repo>
+cd DLL-Injector
+git submodule update --init --recursive
 ```
-Usage: InjectorCLI [OPTIONS] <PATH_TO_DLL>...
-  -m, -M, --mapping=STANDART Set's the type of mapping, this field can take the following values: STANDART,MANUAL
-  -i, -I, --pid        The process id where the dll should be injected
-  -p, -P, --process_path The injector will also execute the process and inject on it
 
-  --steal_handle_job   Whether or not to steal the process handle, it uses a special technique to retrive the process handle even
-  before the own process knows it's PID, it can only be used in conjunction with --process_path and should be combined with manualmap.
+If the recorded BlackBone commit is missing upstream, clone current BlackBone into `Blackbone/` instead:
 
-  -a, --auto_inject=   Use auto inject, will keep running the injector in the background and inject into processes with the process name specified
+```bat
+git clone https://github.com/DarthTon/Blackbone Blackbone
+```
 
-  -a, -W, --auto_inject_window= Use auto inject and only injects in new windows, will keep running the injector in the background and inject into new windows with the specified name
+1. Open `Down'sInjector.sln` in Visual Studio 2022.
+2. Set **Release | x64**.
+3. Build **InjectorCLI** (builds BlackBone first).
 
-  -h, --help           For auto injection the user must provide -auto_inject with a process path
-For normal injection either the option pid or process_path must be provided
-If pid is provided, will inject into the respective pid, else it will execute the process
-steal_handle_job option uses a different technique to inject.
+Output:
 
 ```
-### Examples
+build\x64\Release\InjectorCLI.exe
+```
 
-- This will inject dummy.dll into every process_name.exe that is executed after<br><br>
-``` InjectorCLI.exe -m STANDART --auto_inject "process_name.exe" "C:\path_to_dll\dummy.dll" ```
+Set BlackBone’s C++ language standard to **ISO C++17** if you see:
 
-- This will inject dummy.dll (Only once per process) into every window with the title as "process_name_window" that is executed after<br>
-``` InjectorCLI.exe -m STANDART --auto_inject_window "process_name_window" "C:\path_to_dll\dummy.dll" ```
+```
+'blackbone::_UNICODE_STRING_T<uint32_t>::type': expected an expression instead of a type
+```
 
-- This will launch the process process.exe and inject dummy.dll using manual map with the ASAP handle method<br>
-``` InjectorCLI.exe -m MANUAL -s -process_path "C:\path_to_dll\process.exe" "C:\path_to_dll\dummy.dll" ```
+This repo already uses C++17 and toolset v143 for the x64 Debug/Release BlackBone configs used by the solution.
 
-## External Dependencies
-- [BlackBone](https://github.com/DarthTon/Blackbone)
-- [argparse](https://github.com/cofyc/argparse)
+## Payloads
 
+1. Copy your DLLs into `Payload/` (subfolders are fine).
+2. Point the launcher or the service at those names, relative to `Payload\`, not `C:\...`.
 
-## Compilation
-Make sure to install all dependencies required by [BlackBone](https://github.com/DarthTon/Blackbone), and also these ones:
-- Net Framework 4.7.1 Software Development Kit
-- MFC v143 build tools (x86 & x64)
+See [Payload/README.md](Payload/README.md).
 
-### Possible issues
-If VisualStudio outputs and error like this:
-```Error	C2275	'blackbone::_UNICODE_STRING_T<uint32_t>::type': expected an expression instead of a type```
-Make sure to set BlackBone's C++ version to C++17, this can be done by right clicking the project -> Properties -> General Properties -> C++ Language Standard -> ISO C++17
+## Console launcher
 
-## Notes
-On future implementations the both projects could be merge in order to have a user interface for a more powerfull injector
+Edit the block at the top of `inject-launcher.bat`:
+
+```bat
+set "INJECT_DELAY=30"
+set "PROC1=target.exe"
+set "DLL1=payload.dll"
+set "MAP1=STANDART"
+```
+
+`DLL1` / `DLL2` are paths under `Payload\`. Mapping is `STANDART` (LoadLibrary) or `MANUAL`.
+
+Double-click `inject-launcher.bat`. It locates `InjectorCLI.exe` next to the script or under `build\x64\Release\`, then watches for the process names. Close the window to stop.
+
+`inject-launcher-hidden.vbs` starts the same launcher with no console.
+
+## Windows service
+
+The service does **not** copy files into Windows. The folder you install from must stay on disk.
+
+```bat
+copy inject-service.ini.example inject-service.ini
+```
+
+Edit `inject-service.ini` (process names, DLLs, mapping, delay). Then double-click `install-service.bat` and approve UAC.
+
+After ini changes:
+
+```bat
+net stop InjectorCLI
+net start InjectorCLI
+```
+
+Remove with `uninstall-service.bat`. Logs default to `inject-service.log` next to the ini.
+
+`inject-service.ini` is gitignored so machine-specific targets are not committed.
+
+## CLI
+
+```text
+InjectorCLI.exe [OPTIONS] <dll_path>
+```
+
+| Option | Meaning |
+| --- | --- |
+| `-m, --mapping STANDART\|MANUAL` | LoadLibrary or manual map |
+| `--pid N` | Inject into an existing PID |
+| `--process_path PATH` | Start that executable and inject |
+| `--steal_handle_job` | Handle-steal start; use with `--process_path` and `MANUAL` |
+| `--auto_inject_process NAME` | Stay running; inject when `NAME` appears |
+| `--auto_inject_window TITLE` | Stay running; inject when a new window title matches |
+| `--inject_delay SECONDS` | Wait after a match, then inject |
+| `-x` | Wipe PE headers (manual map) |
+| `-i` | Manual imports (manual map) |
+| `-t` | No new threads / hijack (manual map) |
+| `--service install\|uninstall` | Windows service (Administrator) |
+| `--service --config PATH` | SCM entrypoint; used by the service |
+
+Examples:
+
+```bat
+InjectorCLI.exe -m STANDART --auto_inject_process target.exe --inject_delay 30 Payload\payload.dll
+
+InjectorCLI.exe -m MANUAL --pid 1234 Payload\payload.dll
+
+InjectorCLI.exe -m MANUAL --steal_handle_job --process_path "C:\app\app.exe" Payload\payload.dll
+```
+
+`--auto_inject` from older README text is not a flag. Use `--auto_inject_process`.
+
+## GUI
+
+Build **Down'sInjector** (Release x64). It waits until you focus another window, then manual-maps the selected DLL.
+
+## Portable zip
+
+```bat
+pack-release.bat
+```
+
+Creates:
+
+- `dist\InjectorCLI\` — runnable folder
+- `dist\InjectorCLI-Release.zip`
+
+Unzip on another 64-bit Windows machine, keep the folder together, and either run `inject-launcher.bat` or `install-service.bat`.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| `InjectorCLI.exe was not found` | Build Release x64, or place the exe next to the launcher |
+| Target found, then LoadLibrary error 0 | Increase `INJECT_DELAY` / `InjectDelay`; try `MANUAL` |
+| Service starts then stops | `inject-service.log`; missing payload DLL or empty targets |
+| Service fails after moving the folder | Re-run `install-service.bat` from the new location |
+| argparse.hpp missing | `External\include` is on the include path; do not require vcpkg |
+
+## Credits
+
+- [BlackBone](https://github.com/DarthTon/Blackbone) by DarthTon
+- [argparse](https://github.com/p-ranav/argparse) (header vendored under `External/include`)

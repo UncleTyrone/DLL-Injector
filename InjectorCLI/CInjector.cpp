@@ -38,10 +38,10 @@ bool CInjector::AutoInjectFromWindow(CDllMap& mapper, std::string dll, std::stri
 	return false;
 }
 
-bool CInjector::AutoInjectProcess(CDllMap& mapper, bool stealHandleJob, std::string dll, std::string processName)
+bool CInjector::AutoInjectProcess(CDllMap& mapper, bool stealHandleJob, std::string dll, std::string processName, int injectDelaySeconds)
 {
 	HANDLE h = 0;
-	DEBUG_LOG("Starting auto injection into process dll=%s processName=%s", dll.c_str(), processName.c_str());
+	DEBUG_LOG("Starting auto injection into process dll=%s processName=%s delay=%ds", dll.c_str(), processName.c_str(), injectDelaySeconds);
 
 	if (stealHandleJob) {
 		auto pid = 0UL;
@@ -84,6 +84,7 @@ bool CInjector::AutoInjectProcess(CDllMap& mapper, bool stealHandleJob, std::str
 		args.dllPath = dll;
 		args.map = &mapper;
 		args.processName = processName;
+		args.injectDelaySeconds = injectDelaySeconds;
 
 		DEBUG_LOG("Waiting for multiple processes using EnumProcesses");
 		HANDLE threadHandle = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)__InjectNewProcess, &args, 0, 0);
@@ -208,51 +209,76 @@ HANDLE CInjector::CreateProcessAndStealHandle(std::string& file)
 
 void CInjector::__InjectNewProcess(InjectNewProcessInfo* args)
 {
-	// Get the list of process identifiers.
 	std::string processName = args->processName;
-	static bool itsFirsTime = true; //Used to not inject in processes already in running
+	std::set<int> lastProcesses;
+	std::set<int> injected;
+	bool firstScan = true;
+
+	DEBUG_LOG("Watching for %s (includes processes already running)", processName.c_str());
+
 	while (1) {
 		DWORD aProcesses[1024], cbNeeded, cProcesses;
-		unsigned int i;
 
 		if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
 		{
 			DEBUG_LOG("Could not enumerate current processes");
+			Sleep(1500);
 			continue;
 		}
-		// Calculate how many process identifiers were returned.
+
 		cProcesses = cbNeeded / sizeof(DWORD);
 		char buffer[MAX_PATH];
 		std::set<int> this_execution;
 
-		for (i = 0; i < cProcesses; i++){
+		for (unsigned int i = 0; i < cProcesses; i++) {
 			int pid = aProcesses[i];
-			if (pid != 0){
+			if (pid == 0) {
+				continue;
+			}
 
-				//Check if already existed in set
-				this_execution.insert(pid);
-				if (m_lastProcesses.count(pid) == 1) {
-					continue;
-				}
-				//Inject if process name match
-				auto race_handle = OpenProcess(PROCESS_ALL_ACCESS, true, (DWORD)pid);
-				if (race_handle) {
-					GetModuleFileNameExA(race_handle, 0, buffer, MAX_PATH);
-					std::string currProcessName = getFileNameFromPath(buffer);
-					DEBUG_LOG("New Process Detected : %s, PID:%d", currProcessName.data(), pid);
-					if (processName.compare(currProcessName) == 0 && itsFirsTime==false) {
-						bool result = args->map->mapImage(race_handle, args->dllPath);
-						DEBUG_LOG("Injected into : %s, PID:%d, Result Code:%d", buffer, pid, result);
+			this_execution.insert(pid);
+			if (injected.count(pid) == 1) {
+				continue;
+			}
+			if (!firstScan && lastProcesses.count(pid) == 1) {
+				continue;
+			}
+
+			auto race_handle = OpenProcess(PROCESS_ALL_ACCESS, true, (DWORD)pid);
+			if (!race_handle) {
+				continue;
+			}
+
+			buffer[0] = 0;
+			GetModuleFileNameExA(race_handle, 0, buffer, MAX_PATH);
+			std::string currProcessName = getFileNameFromPath(buffer);
+
+			if (_stricmp(processName.c_str(), currProcessName.c_str()) == 0) {
+				DEBUG_LOG("Target found: %s, PID:%d", currProcessName.c_str(), pid);
+				if (args->injectDelaySeconds > 0) {
+					DEBUG_LOG("Waiting %d seconds before injecting into PID:%d", args->injectDelaySeconds, pid);
+					Sleep(args->injectDelaySeconds * 1000);
+					if (WaitForSingleObject(race_handle, 0) == WAIT_OBJECT_0) {
+						ERROR_LOG("Process exited during inject delay, PID:%d", pid);
+						CloseHandle(race_handle);
+						continue;
 					}
-					CloseHandle(race_handle);
+				}
+				bool result = args->map->mapImage(race_handle, args->dllPath);
+				if (result) {
+					injected.insert(pid);
+					DEBUG_LOG("Injected into %s, PID:%d", currProcessName.c_str(), pid);
+				}
+				else {
+					ERROR_LOG("Injection failed for %s, PID:%d", currProcessName.c_str(), pid);
 				}
 			}
+			CloseHandle(race_handle);
 		}
-		itsFirsTime = false;
 
-		//Replace for new set
-		m_lastProcesses = this_execution;
-		Sleep(1500);//Run every 1.5s
+		firstScan = false;
+		lastProcesses = this_execution;
+		Sleep(1500);
 	}
 }
 

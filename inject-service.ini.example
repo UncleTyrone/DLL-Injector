@@ -1,0 +1,53 @@
+; Copy this file to inject-service.ini and edit it.
+;   copy inject-service.ini.example inject-service.ini
+;
+; The Windows service reads inject-service.ini on start.
+; After changes, restart the service:
+;   net stop InjectorCLI & net start InjectorCLI
+
+[General]
+; Seconds to wait AFTER a target process is found and BEFORE injecting.
+InjectDelay=30
+
+; Folder of payload DLLs. Blank = "Payload" next to this ini file.
+; Subfolders are searched. DLL names below are relative to this folder.
+PayloadDir=
+
+; Optional log file. Blank = inject-service.log next to this ini.
+LogFile=
+
+; How Windows starts the service: delayed (default), auto, or demand (manual).
+StartType=delayed
+
+; Windows service names. Re-run install-service.bat if you change these.
+ServiceName=InjectorCLI
+ServiceDisplay=Injector CLI
+
+; How many [TargetN] blocks to scan (Target1 .. TargetN).
+MaxTargets=8
+
+; ------------------------------------------------------------
+; TARGETS
+;   Process = executable name to watch
+;   Dll     = file under PayloadDir (subfolders allowed)
+;   Mapping = STANDART (LoadLibrary) or MANUAL
+;   Enabled = 1 or 0
+;
+; Optional per-target keys:
+;   InjectDelay=30
+;   DeleteHeaders=0
+;   ManualImports=0
+;   NoThreads=0
+; ------------------------------------------------------------
+
+[Target1]
+Enabled=1
+Process=target.exe
+Dll=payload.dll
+Mapping=STANDART
+
+[Target2]
+Enabled=0
+Process=other.exe
+Dll=other.dll
+Mapping=STANDART

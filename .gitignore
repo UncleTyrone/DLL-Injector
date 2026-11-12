@@ -342,3 +342,23 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 
+# ---------------------------------------------------------------------------
+# Project-specific
+# ---------------------------------------------------------------------------
+
+# Portable release output (rebuild with pack-release.bat)
+dist/
+*.zip
+
+# Local service config (copy from inject-service.ini.example)
+inject-service.ini
+inject-service.log
+
+# Runtime / packaging logs
+*.log
+
+# Payload binaries stay local; keep the folder and its readme
+Payload/*
+!Payload/.gitkeep
+!Payload/README.md
+

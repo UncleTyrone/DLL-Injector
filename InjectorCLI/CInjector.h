@@ -49,7 +49,7 @@ public:
 	~CInjector();
 
 	bool AutoInjectFromWindow(CDllMap& mapper, std::string dll, std::string processName);
-	bool AutoInjectProcess(CDllMap& mapper, bool stealHandleJob, std::string dll, std::string processName);
+	bool AutoInjectProcess(CDllMap& mapper, bool stealHandleJob, std::string dll, std::string processName, int injectDelaySeconds = 0);
 	bool StartProcessAndInject(CDllMap & mapper, bool stealHandleJob, std::string file, std::string dll);
 	static bool InjectFromPID(CDllMap& mapper, int pid, std::string dll);
 	bool InjectFromClickingWindow(CDllMap& mapper, std::string dll);
@@ -73,6 +73,7 @@ private:
 		CDllMap* map;
 		std::string dllPath;
 		std::string processName;
+		int injectDelaySeconds;
 	};
 
 	struct InjectNewProcessByWindowInfo {

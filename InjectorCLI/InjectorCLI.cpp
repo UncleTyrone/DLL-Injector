@@ -1,4 +1,5 @@
 #include "CInjector.h"
+#include "WinService.h"
 #include <stdbool.h>
 #include <stdlib.h>
 #include <optional>
@@ -20,6 +21,7 @@ struct ArgsCtx {
     std::optional<std::string> processPath;
     MAPPING_TYPE mapping;
     std::string dllPath;
+    int injectDelaySeconds = 0;
 
     std::optional<std::string_view> getProcessName() {
         if (processPath.has_value()) {
@@ -44,6 +46,7 @@ ArgsCtx parseArgs(int argc, char* argv[]) {
     cli.add_argument("--steal_handle_job").default_value(false).implicit_value(true).help("Whether or not to steal the process handle, it uses a special technique to retrive the process handle even before the own process knows it's PID, it can only be used in conjunction with --process_path and should be combined with manualmap.");
     cli.add_argument("--auto_inject_process").help("Use auto inject, will keep running the injector in the background and inject into processes with the process name specified");
     cli.add_argument("--auto_inject_window").help("Use auto inject and only injects in new windows, will keep running the injector in the background and inject into new windows with the specified name");
+    cli.add_argument("--inject_delay").default_value(0).scan<'i', int>().help("Seconds to wait after a target process is found and before injecting");
 
     ArgsCtx args;
     try {
@@ -54,6 +57,7 @@ ArgsCtx parseArgs(int argc, char* argv[]) {
 		args.processPath = cli.present("--process_path");
 		args.autoInjectProcess = cli.present("--auto_inject_process");
 		args.autoInjectWindow = cli.present("--auto_inject_window");
+		args.injectDelaySeconds = cli.get<int>("--inject_delay");
         args.flags = (blackbone::eLoadFlags)(cli.get<int>("--delete_headers") | cli.get<int>("--manual_import_headers") | cli.get<int>("--no_threads"));
 
         if (cli.get<int>("--pid") != 0) {
@@ -75,6 +79,8 @@ ArgsCtx parseArgs(int argc, char* argv[]) {
 
 int main(int argc, char* argv[])
 {
+    HandleServiceCommand(argc, argv);
+
     DEBUG_LOG("Parsing arguments..\n");
     ArgsCtx args = parseArgs(argc, argv);
 
@@ -101,7 +107,7 @@ int main(int argc, char* argv[])
     if (args.autoInjectWindow) {
         injectionResult = injector.AutoInjectFromWindow(*map, args.dllPath, args.autoInjectWindow.value());
     }else if (args.autoInjectProcess) {
-        injectionResult = injector.AutoInjectProcess(*map, args.stealHandleJob, args.dllPath, args.autoInjectProcess.value());
+        injectionResult = injector.AutoInjectProcess(*map, args.stealHandleJob, args.dllPath, args.autoInjectProcess.value(), args.injectDelaySeconds);
 	}else if (args.processPath) {
         injectionResult = injector.StartProcessAndInject(*map, args.stealHandleJob, args.processPath.value(), args.dllPath);
     }else if (args.pid) {
