@@ -361,4 +361,5 @@ inject-service.log
 Payload/*
 !Payload/.gitkeep
 !Payload/README.md
+/*.dll
 
